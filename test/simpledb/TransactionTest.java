@@ -6,6 +6,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import junit.framework.JUnit4TestAdapter;
 
+
 public class TransactionTest extends TestUtil.CreateHeapFile {
   private PageId p0, p1, p2;
   private TransactionId tid1, tid2;
@@ -37,7 +38,7 @@ public class TransactionTest extends TestUtil.CreateHeapFile {
     this.p2 = new HeapPageId(empty.getId(), 2);
     this.tid1 = new TransactionId();
     this.tid2 = new TransactionId();
-
+    
     // forget about locks associated to tid, so they don't conflict with
     // test cases
     bp.getPage(tid, p0, Permissions.READ_WRITE).markDirty(true, tid);
@@ -54,11 +55,21 @@ public class TransactionTest extends TestUtil.CreateHeapFile {
    */
   @Test public void attemptTransactionTwice() throws Exception {
     bp.getPage(tid1, p0, Permissions.READ_ONLY);
+    System.out.println(1);
     bp.getPage(tid1, p1, Permissions.READ_WRITE);
+    System.out.println(2);
+    System.out.println("%%%%%%%%%%%%%%%%");
+    System.out.println("tid1:"+tid1.myid+" tid2:"+tid2.myid);
+   // bp.print2(p0);
+   // bp.print2(p1);
+    System.out.println("%%%%%%%%%%%%%%%%");
+    bp.print2(p0);
+    bp.print2(p1);
     bp.transactionComplete(tid1, true);
-
+    
     bp.getPage(tid2, p0, Permissions.READ_WRITE);
     bp.getPage(tid2, p0, Permissions.READ_WRITE);
+    
   }
 
   /**
@@ -68,14 +79,16 @@ public class TransactionTest extends TestUtil.CreateHeapFile {
    */
   public void testTransactionComplete(boolean commit) throws Exception {
     HeapPage p = (HeapPage) bp.getPage(tid1, p2, Permissions.READ_WRITE);
-
+    System.out.println("tid1:"+tid1.myid+" tid2:"+tid2.myid+" commit:"+commit);
+   // bp.print2(p2);
     Tuple t = Utility.getHeapTuple(new int[] { 6, 830 });
     t.setRecordId(new RecordId(p2, 1));
-
+    
     p.insertTuple(t);
     p.markDirty(true, tid1);
+   
     bp.transactionComplete(tid1, commit);
-
+    
     // now, flush the buffer pool and access the page again from disk.
     bp = Database.resetBufferPool(BufferPool.DEFAULT_PAGES);
     p = (HeapPage) bp.getPage(tid2, p2, Permissions.READ_WRITE);
@@ -92,8 +105,9 @@ public class TransactionTest extends TestUtil.CreateHeapFile {
         break;
       }
     }
-
+    
     assertEquals(commit, found);
+    
   }
 
   /**
@@ -102,6 +116,7 @@ public class TransactionTest extends TestUtil.CreateHeapFile {
    */
   @Test public void commitTransaction() throws Exception {
     testTransactionComplete(true);
+    
   }
 
   /**
@@ -109,7 +124,9 @@ public class TransactionTest extends TestUtil.CreateHeapFile {
    * Verify that a tuple inserted during a committed transaction is durable
    */
   @Test public void abortTransaction() throws Exception {
-    testTransactionComplete(false);
+	 
+	  testTransactionComplete(false);
+   
   }
 
   /**

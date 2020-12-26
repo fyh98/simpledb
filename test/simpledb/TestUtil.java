@@ -134,13 +134,15 @@ public class TestUtil {
             Tuple expectedTup = expected.next();
             matched = false;
             actual.rewind();
-
+           
             while (actual.hasNext()) {
                 Tuple next = actual.next();
+                
                 if (compareTuples(expectedTup, next)) {
                     matched = true;
                     break;
                 }
+               
             }
 
             if (!matched) {

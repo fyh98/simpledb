@@ -39,6 +39,7 @@ public interface DbFile {
      * @return An ArrayList contain the pages that were modified
      * @throws DbException if the tuple cannot be added
      * @throws IOException if the needed file can't be read/written
+     * 
      */
     public ArrayList<Page> insertTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException;
@@ -55,6 +56,7 @@ public interface DbFile {
      * @return An ArrayList contain the pages that were modified
      * @throws DbException if the tuple cannot be deleted or is not a member
      *   of the file
+     * 
      */
     public ArrayList<Page> deleteTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException;

@@ -88,6 +88,7 @@ public class BTreeFileInsertTest extends SimpleDbTestBase {
 		// add a bunch of identical tuples
 		for (int i = 0; i < 5; ++i) {
 			for(int j = 0; j < 600; ++j) {
+				
 				tup = BTreeUtility.getBTreeTuple(i, 2);
 				empty.insertTuple(tid, tup);
 				// BTreeChecker.checkRep(empty, tid, new HashMap<PageId, Page>(), true);

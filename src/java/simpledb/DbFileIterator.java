@@ -9,11 +9,13 @@ public interface DbFileIterator{
     /**
      * Opens the iterator
      * @throws DbException when there are problems opening/accessing the database.
+     * @throws DeadlockException 
      */
     public void open()
         throws DbException, TransactionAbortedException;
 
-    /** @return true if there are more tuples available, false if no more tuples or iterator isn't open. */
+    /** @return true if there are more tuples available, false if no more tuples or iterator isn't open. 
+     * @throws DeadlockException */
     public boolean hasNext()
         throws DbException, TransactionAbortedException;
 
@@ -30,6 +32,7 @@ public interface DbFileIterator{
     /**
      * Resets the iterator to the start.
      * @throws DbException When rewind is unsupported.
+     * @throws DeadlockException 
      */
     public void rewind() throws DbException, TransactionAbortedException;
 

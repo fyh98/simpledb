@@ -3,6 +3,10 @@ package simpledb;
 
 import java.io.*;
 import java.util.*;
+import java.util.Map.Entry;
+
+
+
 import java.lang.reflect.*;
 
 /**
@@ -150,20 +154,29 @@ public class LogFile {
         synchronized (Database.getBufferPool()) {
 
             synchronized(this) {
+            	//System.out.println("before abort:"+raf.getFilePointer()+" "+tid.myid);
+            	//System.out.println(recoveryUndecided);
                 preAppend();
                 //Debug.log("ABORT");
                 //should we verify that this is a live transaction?
 
                 // must do this here, since rollback only works for
                 // live transactions (needs tidToFirstLogRecord)
+               
                 rollback(tid);
-
+              //  System.out.println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
+              //  System.out.println("write abort");
+              //  System.out.println("pointer1:"+raf.getFilePointer());
                 raf.writeInt(ABORT_RECORD);
+                
                 raf.writeLong(tid.getId());
                 raf.writeLong(currentOffset);
                 currentOffset = raf.getFilePointer();
+                
                 force();
                 tidToFirstLogRecord.remove(tid.getId());
+             //   System.out.println("pointer2:"+raf.getFilePointer());
+             //   System.out.println(raf.length());
             }
         }
     }
@@ -176,14 +189,20 @@ public class LogFile {
     public synchronized void logCommit(TransactionId tid) throws IOException {
         preAppend();
         Debug.log("COMMIT " + tid.getId());
+        
         //should we verify that this is a live transaction?
-
+        
+      //  System.out.println("write commit"+" "+tid.getId());
+      //  System.out.println("pointer1:"+raf.getFilePointer());
         raf.writeInt(COMMIT_RECORD);
         raf.writeLong(tid.getId());
         raf.writeLong(currentOffset);
         currentOffset = raf.getFilePointer();
+        
         force();
         tidToFirstLogRecord.remove(tid.getId());
+    //    System.out.println("pointer2:"+raf.getFilePointer());
+    //    System.out.println(raf.length());
     }
 
     /** Write an UPDATE record to disk for the specified tid and page
@@ -207,15 +226,20 @@ public class LogFile {
            after page data
            start offset
         */
+   //     System.out.println("write update"+" "+tid.getId());
+    //    System.out.println("pointer1:"+raf.getFilePointer());
         raf.writeInt(UPDATE_RECORD);
+        
         raf.writeLong(tid.getId());
-
+        
         writePageData(raf,before);
         writePageData(raf,after);
         raf.writeLong(currentOffset);
         currentOffset = raf.getFilePointer();
 
         Debug.log("WRITE OFFSET = " + currentOffset);
+   //     System.out.println("pointer2:"+raf.getFilePointer());
+  //      System.out.println(raf.length());
     }
 
     void writePageData(RandomAccessFile raf, Page p) throws IOException{
@@ -302,23 +326,29 @@ public class LogFile {
     public synchronized  void logXactionBegin(TransactionId tid)
         throws IOException {
         Debug.log("BEGIN");
+       
         if(tidToFirstLogRecord.get(tid.getId()) != null){
             System.err.printf("logXactionBegin: already began this tid\n");
             throw new IOException("double logXactionBegin()");
         }
         preAppend();
+     //   System.out.println("write begin"+" "+tid.myid);
+     //   System.out.println("pointer1:"+raf.getFilePointer());
         raf.writeInt(BEGIN_RECORD);
         raf.writeLong(tid.getId());
         raf.writeLong(currentOffset);
+        
         tidToFirstLogRecord.put(tid.getId(), currentOffset);
         currentOffset = raf.getFilePointer();
-
+    //    System.out.println("pointer2:"+raf.getFilePointer());
+    //    System.out.println(raf.length());
         Debug.log("BEGIN OFFSET = " + currentOffset);
     }
 
     /** Checkpoint the log and write a checkpoint record. */
     public void logCheckpoint() throws IOException {
         //make sure we have buffer pool lock before proceeding
+    	
         synchronized (Database.getBufferPool()) {
             synchronized (this) {
                 //Debug.log("CHECKPOINT, offset = " + raf.getFilePointer());
@@ -331,7 +361,7 @@ public class LogFile {
                 startCpOffset = raf.getFilePointer();
                 raf.writeInt(CHECKPOINT_RECORD);
                 raf.writeLong(-1); //no tid , but leave space for convenience
-
+        //        System.out.println("write checkpoint");
                 //write list of outstanding transactions
                 raf.writeInt(keys.size());
                 while (els.hasNext()) {
@@ -387,7 +417,7 @@ public class LogFile {
                 }
             }
         }
-
+    //    System.out.println("truncate**********************");
         // we can truncate everything before minLogRecord
         File newFile = new File("logtmp" + System.currentTimeMillis());
         RandomAccessFile logNew = new RandomAccessFile(newFile, "rw");
@@ -402,7 +432,7 @@ public class LogFile {
                 int type = raf.readInt();
                 long record_tid = raf.readLong();
                 long newStart = logNew.getFilePointer();
-
+     //           System.out.println(type+"********************************************");
                 Debug.log("NEW START = " + newStart);
 
                 logNew.writeInt(type);
@@ -434,7 +464,7 @@ public class LogFile {
                 //all xactions finish with a pointer
                 logNew.writeLong(newStart);
                 raf.readLong();
-
+      //          System.out.println(newStart);
             } catch (EOFException e) {
                 break;
             }
@@ -467,10 +497,91 @@ public class LogFile {
             synchronized(this) {
                 preAppend();
                 // some code goes here
+                
+                Long checkPointOffset,lastRecordOffset;
+                //lastRecordOffset=tidToFirstLogRecord.get(tid.getId());
+            //    System.out.println("tid: "+tid.getId());
+                raf.seek(raf.length()-8);
+                lastRecordOffset=raf.readLong();
+                long beginPointOffset=tidToFirstLogRecord.get(tid.getId());
+               // raf.seek(0);
+               // checkPointOffset=this.raf.readLong();
+                
+                while (lastRecordOffset>=beginPointOffset) {
+                	raf.seek(lastRecordOffset);
+                	int typeRecord=raf.readInt();
+                	long transactionIDNumber=raf.readLong();
+                	//System.out.println(typeRecord+" "+transactionIDNumber);
+                	if((typeRecord==UPDATE_RECORD)&&(transactionIDNumber==tid.getId())) {
+                		HeapPage oldPage=(HeapPage) readPageData(raf);
+                		//oldPage.markDirty(true, tid);
+                		HeapPage newPage=(HeapPage)readPageData(raf);
+                		HeapPageId pageId=oldPage.getId();
+                		HeapPage heapPage1=(HeapPage) Database.getCatalog().getDatabaseFile(pageId.getTableId()).readPage(pageId);
+                	//	System.out.println("found 4 before writng0?"+found(4, heapPage1));
+                	//	System.out.println(pageId.getPageNumber());
+                	//	System.out.println("found 4 in old?"+found(4, oldPage));
+                	//	System.out.println("found 4 in new?"+found(4, newPage));
+                		Database.getCatalog().getDatabaseFile(pageId.getTableId()).writePage(oldPage);
+                		Database.getBufferPool().getPageSet(oldPage);
+                		HeapPage heapPage=(HeapPage) Database.getCatalog().getDatabaseFile(pageId.getTableId()).readPage(pageId);
+                	//	System.out.println("found 4 after writng1?"+found(4, heapPage));
+                	//	System.out.println("found 4 after writng2?"+found2((HeapFile)Database.getCatalog().getDatabaseFile(pageId.getTableId()), tid,4));
+                	}
+                	if((typeRecord==BEGIN_RECORD)&&(transactionIDNumber==tid.getId())) {
+                		break;
+                	}
+                	raf.seek(lastRecordOffset-8);
+                	lastRecordOffset=raf.readLong();
+     
+				}
+                
             }
         }
+        raf.seek(raf.length());
     }
-
+    boolean found(int v1,HeapPage page) {
+    	boolean isFound=false;
+    	for(int i=0;i<page.numSlots;++i) {
+    		if(page.isSlotUsed(i)) {
+    			int x = ((IntField)page.tuples[i].getField(0)).getValue();
+    			if(x==v1) {
+    				isFound=true;
+    				break;
+    			}
+    		}
+    	}
+        return isFound;
+    }
+    boolean found2(HeapFile hf, TransactionId t, int v1) {
+    	boolean isFound=false;
+    	SeqScan scan = new SeqScan(t, hf.getId(), "");
+        try {
+			scan.open();
+		} catch (DbException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} catch (TransactionAbortedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+        try {
+			while(scan.hasNext()){
+			    Tuple tu = scan.next();
+			    int x = ((IntField)tu.getField(0)).getValue();
+			    if(x == v1) {
+			    	isFound=true;
+			    	break;
+			    }
+			        
+			}
+		} catch (NoSuchElementException | TransactionAbortedException | DbException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+        scan.close();
+        return isFound;
+    }
     /** Shutdown the logging system, writing out whatever state
         is necessary so that start up can happen quickly (without
         extensive recovery.)
@@ -494,13 +605,177 @@ public class LogFile {
             synchronized (this) {
                 recoveryUndecided = false;
                 // some code goes here
+                /*HashMap<Long, Long> undoList=new HashMap<>();
+                HashMap<Long, Boolean> redoCommitList=new HashMap<>();
+                HashMap<Long, Boolean> redoAbortList=new HashMap<>();*/
+                
+                HashMap<Long, HashMap<Integer, HeapPage> > undoList=new HashMap<>();
+                HashMap<Long, HashMap<Integer, HeapPage> > redoCommitList=new HashMap<>();
+                HashMap<Long, HashMap<Integer, HeapPage> > redoAbortList=new HashMap<>();
+                raf.seek(0);
+               long checkOffset=raf.readLong();
+      //         System.out.println("checkpoint: "+checkOffset);
+               long cmpValue=-1;
+               //if(checkOffset!=cmpValue)
+            	//  raf.seek(checkOffset);
+            	/*
+               while (raf.getFilePointer()<=raf.length()) {
+            	   long beginOffset=raf.getFilePointer();
+            	   int kind=raf.readInt();
+            	   long tid=raf.readLong();
+            	   switch (kind) {
+				case 1:
+					if(undoList.get(tid)!=null) {
+						redoAbortList.put(tid, true);
+						undoList.put(tid, null);
+					}
+					raf.readLong();
+					break;
+				case 2:
+					if(undoList.get(tid)!=null) {
+						redoCommitList.put(tid, true);
+						undoList.put(tid, null);
+					}
+					raf.readLong();
+					break;
+				case 3:
+					undoList.put(tid, beginOffset);
+					readPageData(raf);
+					readPageData(raf);
+					raf.readLong();
+					break;
+				case 4:
+					raf.readLong();
+					break;
+				
+				default:
+					break;
+				}
+			}*/
+            long beginOffset;
+            if(checkOffset!=cmpValue)
+            	beginOffset=checkOffset;
+            else
+            	beginOffset=8;
+            beginOffset=8;
+   //         System.out.println(raf.length());
+             raf.seek(raf.length()-8);
+            long lastOffset=raf.readLong();
+   //         System.out.println("lastoffset:"+lastOffset);
+            while (lastOffset>=beginOffset) {
+            	raf.seek(lastOffset);
+   //         	System.out.println("currentOffset: "+lastOffset);
+				int type=raf.readInt();
+				long tid=raf.readLong();
+	//			System.out.println("type:"+type+" tid: "+tid);
+				switch (type) {
+				case 1:
+					redoAbortList.put(tid, new HashMap<>());
+					break;
+				case 2:
+					redoCommitList.put(tid, new HashMap<>());
+					break;
+				case 3:
+					Page oldPage=readPageData(raf);
+					Page newPage=readPageData(raf);
+					if(redoAbortList.get(tid)==null&&redoCommitList.get(tid)==null) {
+						if(undoList.get(tid)==null)
+							undoList.put(tid, new HashMap<>());
+						undoList.get(tid).put(oldPage.getId().hashCode(),(HeapPage) oldPage);
+					}
+					else {
+						if(redoCommitList.get(tid)!=null) {
+		//					System.out.println(newPage.getId().hashCode()+""+(redoCommitList.get(tid).get(newPage.getId().hashCode())==null));
+							if(redoCommitList.get(tid).get(newPage.getId().hashCode())==null) {
+								redoCommitList.get(tid).put(newPage.getId().hashCode(), (HeapPage) newPage);
+		//						System.out.println("tid:"+tid+" page:"+newPage.getId().hashCode()+" "+(redoCommitList.get(tid).get(newPage.getId().hashCode())==null));
+							}
+								
+							
+						}
+						else {
+							redoAbortList.get(tid).put(oldPage.getId().hashCode(), (HeapPage) oldPage);
+						}
+					}	
+					break;
+				case 5:
+					int numRecords=raf.readInt();
+					for(int i=0;i<numRecords;++i) {
+						raf.readLong();
+						raf.readLong();
+					}
+					break;
+				default:
+					break;
+				}
+				
+				lastOffset=raf.readLong()-8;
+				if(lastOffset>beginOffset) {
+					raf.seek(lastOffset);
+					System.out.println(lastOffset);
+					lastOffset=raf.readLong();
+				}
+					
+				
+				
+				
+			}
+            
+            Iterator iterLayer1=undoList.entrySet().iterator();
+            writeForRecovering(iterLayer1);
+            iterLayer1=redoAbortList.entrySet().iterator();
+            writeForRecovering(iterLayer1);
+            iterLayer1=redoCommitList.entrySet().iterator();
+            writeForRecovering(iterLayer1);
             }
          }
     }
-
+    private void writeForRecovering(Iterator iterLayer1) {
+    	while (iterLayer1.hasNext()) {
+			Map.Entry<Long, HashMap<Integer, HeapPage> > entryLayer1=(Map.Entry<Long, HashMap<Integer,HeapPage>>) iterLayer1.next();
+			HashMap<Integer, HeapPage> valLayer1=entryLayer1.getValue();
+			Iterator iterLayer2=valLayer1.entrySet().iterator();
+			while (iterLayer2.hasNext()) {
+				Map.Entry<Integer, HeapPage > entryLayer2=(Map.Entry<Integer, HeapPage>) iterLayer2.next();
+				HeapPage valLayer2=entryLayer2.getValue();
+				try {
+					Database.getCatalog().getDatabaseFile(valLayer2.pid.getTableId()).writePage(valLayer2);
+		//			System.out.println("pagenumber "+valLayer2.pid.getPageNumber());
+				} catch (NoSuchElementException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+        		Database.getBufferPool().getPageSet(valLayer2);
+			}
+		}
+    }
     /** Print out a human readable represenation of the log */
     public void print() throws IOException {
         // some code goes here
+    	System.out.println("print begin :");
+    	raf.seek(0);
+    	
+    	System.out.println("checkpoint:"+raf.readLong());
+    	//System.out.println("beginpoint:"+tidToFirstLogRecord.get(tId.getId()));
+    	System.out.println("end:"+raf.length());
+    //	long beginPoint=tidToFirstLogRecord.get(tId.getId());
+    	raf.seek(raf.length()-8);
+    	long endPoint=raf.readLong();
+    	while (endPoint>=8) {
+			raf.seek(endPoint);
+			int type=raf.readInt();
+			long tid=raf.readLong();
+			System.out.println("@@@@@@@@@@@@@@@@@@@@@@@");
+			System.out.println("type:"+type);
+			System.out.println("tid:"+tid);
+			raf.seek(endPoint-8);
+			endPoint=raf.readLong();
+			
+			
+    	}
     }
 
     public  synchronized void force() throws IOException {

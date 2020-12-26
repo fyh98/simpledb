@@ -1,9 +1,15 @@
 package simpledb;
 
+import simpledb.Predicate.Op;
+
 /** A class to represent a fixed-width histogram over a single integer-based field.
  */
 public class IntHistogram {
-
+	private int[] buckets;
+	private int min;
+	private int max;
+	private int ntups;
+	private double width;
     /**
      * Create a new IntHistogram.
      * 
@@ -22,6 +28,10 @@ public class IntHistogram {
      */
     public IntHistogram(int buckets, int min, int max) {
     	// some code goes here
+    	this.buckets=new int[buckets];
+    	this.min=min;
+    	this.max=max;
+    	this.width=((double)(max-min+1))/buckets;
     }
 
     /**
@@ -30,6 +40,11 @@ public class IntHistogram {
      */
     public void addValue(int v) {
     	// some code goes here
+    	if(v<min||v>max)
+    		throw new IllegalArgumentException("value out of range");
+    	int index=(int)((v-min)/width);
+    	++buckets[index];
+    	++ntups;
     }
 
     /**
@@ -45,6 +60,32 @@ public class IntHistogram {
     public double estimateSelectivity(Predicate.Op op, int v) {
 
     	// some code goes here
+    	switch (op) {
+		case LESS_THAN:
+			if(v<=min)
+				return 0.0;
+			if(v>=max)
+				return 1.0;
+			int index=(int)((v-min)/width);
+			double count=0;
+			for(int i=0;i<index;++i) {
+				count+=buckets[i];
+			}
+			count+=(buckets[index]/width)*(v-index*width-min);
+			return count/ntups;
+		case LESS_THAN_OR_EQ:
+			return estimateSelectivity(Op.LESS_THAN, v+1);
+		case GREATER_THAN:
+			return 1-estimateSelectivity(Op.LESS_THAN_OR_EQ, v);
+		case GREATER_THAN_OR_EQ:
+			return estimateSelectivity(op.GREATER_THAN, v-1);
+		case EQUALS:
+			return estimateSelectivity(Op.LESS_THAN_OR_EQ, v)-estimateSelectivity(Op.LESS_THAN, v);
+		case NOT_EQUALS:
+			return 1-estimateSelectivity(Op.EQUALS, v);
+		default:
+			break;
+		}
         return -1.0;
     }
     
@@ -59,7 +100,11 @@ public class IntHistogram {
     public double avgSelectivity()
     {
         // some code goes here
-        return 1.0;
+    	int count=0;
+    	for(int i=0;i<buckets.length;++i)
+    		count+=buckets[i];
+    	System.out.println(((double)count)/ntups);
+        return ((double)count)/ntups;
     }
     
     /**
@@ -67,6 +112,6 @@ public class IntHistogram {
      */
     public String toString() {
         // some code goes here
-        return null;
+        return "length:"+buckets.length+" min: "+min+" max:"+max;
     }
 }

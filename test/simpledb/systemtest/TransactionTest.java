@@ -31,6 +31,7 @@ public class TransactionTest extends SimpleDbTestBase {
 
         ModifiableCyclicBarrier latch = new ModifiableCyclicBarrier(threads);
         XactionTester[] list = new XactionTester[threads];
+        
         for(int i = 0; i < list.length; i++) {
             list[i] = new XactionTester(table.getId(), latch);
             list[i].start();
@@ -84,42 +85,47 @@ public class TransactionTest extends SimpleDbTestBase {
         public void run() {
             try {
                 // Try to increment the value until we manage to successfully commit
+            	
                 while (true) {
                     // Wait for all threads to be ready
                     latch.await();
                     Transaction tr = new Transaction();
                     try {
                         tr.start();
+                        
                         SeqScan ss1 = new SeqScan(tr.getId(), tableId, "");
                         SeqScan ss2 = new SeqScan(tr.getId(), tableId, "");
 
                         // read the value out of the table
                         Query q1 = new Query(ss1, tr.getId());
                         q1.start();
+                        System.out.println("start1"+tr.getId());
                         Tuple tup = q1.next();
                         IntField intf = (IntField) tup.getField(0);
                         int i = intf.getValue();
-
+                        
                         // create a Tuple so that Insert can insert this new value
                         // into the table.
                         Tuple t = new Tuple(SystemTestUtil.SINGLE_INT_DESCRIPTOR);
                         t.setField(0, new IntField(i+1));
-
+                        
                         // sleep to get some interesting thread interleavings
                         Thread.sleep(1);
-
+                        System.out.println(tr.getId()+"end1");
                         // race the other threads to finish the transaction: one will win
                         q1.close();
-
+                        
                         // delete old values (i.e., just one row) from table
                         Delete delOp = new Delete(tr.getId(), ss2);
 
                         Query q2 = new Query(delOp, tr.getId());
 
                         q2.start();
+                        System.out.println(tr.getId()+"start2");
                         q2.next();
+                        
                         q2.close();
-
+                        System.out.println("end2");
                         // set up a Set with a tuple that is one higher than the old one.
                         HashSet<Tuple> hs = new HashSet<Tuple>();
                         hs.add(t);
@@ -129,21 +135,24 @@ public class TransactionTest extends SimpleDbTestBase {
                         Insert insOp = new Insert(tr.getId(), ti, tableId);
                         Query q3 = new Query(insOp, tr.getId());
                         q3.start();
+                        System.out.println("start3");
                         q3.next();
                         q3.close();
-
+                        
                         tr.commit();
                         break;
                     } catch (TransactionAbortedException te) {
-                        //System.out.println("thread " + tr.getId() + " killed");
+                        System.out.println("thread " + tr.getId() + " killed");
                         // give someone else a chance: abort the transaction
                         tr.transactionComplete(true);
+                        System.out.println("thread " + tr.getId() + " release");
                         latch.stillParticipating();
                     }
                 }
                 //System.out.println("thread " + id + " done");
             } catch (Exception e) {
                 // Store exception for the master thread to handle
+            	System.out.println(e.getCause());
                 exception = e;
             }
             
@@ -218,11 +227,13 @@ public class TransactionTest extends SimpleDbTestBase {
 
     @Test public void testFiveThreads()
             throws IOException, DbException, TransactionAbortedException {
+    	
         validateTransactions(5);
     }
     
     @Test public void testTenThreads()
     throws IOException, DbException, TransactionAbortedException {
+    	
         validateTransactions(10);
     }
 

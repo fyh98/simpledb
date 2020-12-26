@@ -113,9 +113,10 @@ public class BTreeTest extends SimpleDbTestBase {
 			insertThreads.add(bi);
 			// The first few inserts will cause pages to split so give them a little
 			// more time to avoid too many deadlock situations
+			
 			Thread.sleep(r.nextInt(POLL_INTERVAL));
 		}
-		
+		System.out.println("insert first 200******************************************************************************************");
 		for(int i = 0; i < 800; i++) {
 			BTreeInserter bi = startInserter(bf, getRandomTupleData(), insertedTuples);
 			insertThreads.add(bi);
@@ -124,11 +125,13 @@ public class BTreeTest extends SimpleDbTestBase {
 		// wait for all threads to finish
 		waitForInserterThreads(insertThreads);	
 		assertTrue(insertedTuples.size() > size);
-		
+		System.out.println(insertThreads.size());
 		// now insert and delete tuples at the same time
+		
 		System.out.println("Inserting and deleting tuples...");
     	ArrayList<BTreeDeleter> deleteThreads = new ArrayList<BTreeDeleter>();
 		for(BTreeInserter thread : insertThreads) {
+			
 			thread.rerun(bf, getRandomTupleData(), insertedTuples);
     		BTreeDeleter bd = startDeleter(bf, insertedTuples);
     		deleteThreads.add(bd);

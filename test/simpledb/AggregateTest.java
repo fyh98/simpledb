@@ -125,11 +125,18 @@ public class AggregateTest extends SimpleDbTestBase {
    * Unit test for Aggregate.getNext() using a count aggregate with string types
    */
   @Test public void sumStringGroupBy() throws Exception {
-    Aggregate op = new Aggregate(scan3, 1, 0,
+	  System.out.println("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
+	  
+	  Aggregate op = new Aggregate(scan3, 1, 0,
         Aggregator.Op.SUM);
     op.open();
+    System.out.println(op.next().getTupleDesc().getFieldType(0));
+    
+    op.rewind();
     sumstring.open();
+    
     TestUtil.matchAllTuples(sumstring, op);
+   
   }
 
   /**

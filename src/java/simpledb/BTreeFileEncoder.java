@@ -326,7 +326,7 @@ public class BTreeFileEncoder {
 		int rootCategory = (root > 1 ? BTreePageId.INTERNAL : BTreePageId.LEAF);
 		byte[] rootPtrBytes = convertToRootPtrPage(root, rootCategory, 0);
 		bf.writePage(new BTreeRootPtrPage(BTreeRootPtrPage.getId(tableid), rootPtrBytes));
-
+		
 		// set all the parent and sibling pointers
 		setParents(bf, new BTreePageId(tableid, root, rootCategory), BTreeRootPtrPage.getId(tableid));
 		setRightSiblingPtrs(bf, lastPid, null);

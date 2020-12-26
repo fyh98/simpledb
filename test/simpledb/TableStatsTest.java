@@ -32,11 +32,16 @@ public class TableStatsTest extends SimpleDbTestBase {
 		double[] ret = new double[ioCosts.length];
 		for(int i = 0; i < ioCosts.length; ++i) {
 			HeapFile hf = SystemTestUtil.createRandomHeapFile(1, 992*pageNums[i], 32, null, tuples);
-			Assert.assertEquals(pageNums[i], hf.numPages());			
+			
+				
+			Assert.assertEquals(pageNums[i], hf.numPages());
+			
 			String tableName = SystemTestUtil.getUUID();
 			Database.getCatalog().addTable(hf, tableName);
 			int tableId = Database.getCatalog().getTableId(tableName);
+			
 			ret[i] = (new TableStats(tableId, ioCosts[i])).estimateScanCost();
+			System.out.println("*******");
 		}
 		return ret;
 	}
@@ -56,9 +61,14 @@ public class TableStatsTest extends SimpleDbTestBase {
 			ioCosts[i] = 1;
 			pageNums[i] = 3*(i+1);
 		}
+		
 		double stats[] = getRandomTableScanCosts(pageNums, ioCosts);
+		
+			
 		ret = SystemTestUtil.checkConstant(stats);
+		
 		Assert.assertEquals(ret[0], Boolean.FALSE);
+		
 		ret = SystemTestUtil.checkLinear(stats);
 		Assert.assertEquals(ret[0], Boolean.TRUE);
 		// numPages constant, IO_COST change

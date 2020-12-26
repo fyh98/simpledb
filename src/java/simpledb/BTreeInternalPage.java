@@ -353,6 +353,7 @@ public class BTreeInternalPage extends BTreePage {
 		if (!isSlotUsed(rid.getTupleNumber()))
 			throw new DbException("tried to delete null entry.");
 		if(deleteRightChild) {
+			System.out.println("deleteEntry "+this.getChildId(1)+" "+this.getNumEntries()+" "+rid.getTupleNumber());
 			markSlotUsed(rid.getTupleNumber(), false);
 		}
 		else {
@@ -414,7 +415,7 @@ public class BTreeInternalPage extends BTreePage {
 			if(isSlotUsed(i)) {
 				if(keys[i].compare(Op.LESS_THAN, e.getKey())) {
 					throw new DbException("attempt to update entry with invalid key " + e.getKey() +
-							" HINT: updated key must be less than or equal to keys on the right");
+							" HINT: updated key must be less than or equal to keys on the right"+" key:"+keys[i]+" e:"+e.getKey()+" rid:"+rid.getTupleNumber()+" cur:"+i);
 				}
 				break;
 			}	
@@ -490,7 +491,7 @@ public class BTreeInternalPage extends BTreePage {
 								e.getRightChild().getPageNumber() + " and key " + e.getKey() +
 								" HINT: one of these children must match an existing child on the page" +
 								" and this key must be correctly ordered in between that child's" +
-								" left and right keys");
+								" left and right keys"+ (children[i]==e.getRightChild().getPageNumber()));
 					}
 					lessOrEqKey = i;
 					if(children[i] == e.getRightChild().getPageNumber()) {
@@ -505,7 +506,7 @@ public class BTreeInternalPage extends BTreePage {
 								e.getRightChild().getPageNumber() + " and key " + e.getKey() +
 								" HINT: one of these children must match an existing child on the page" +
 								" and this key must be correctly ordered in between that child's" +
-								" left and right keys");
+								" left and right keys"+children[i-1]);
 					}
 					break;
 				}
@@ -649,7 +650,7 @@ public class BTreeInternalPage extends BTreePage {
 	 * @return the ith child page id
 	 * @throws NoSuchElementException
 	 */
-	protected BTreePageId getChildId(int i) throws NoSuchElementException {
+	public BTreePageId getChildId(int i) throws NoSuchElementException {
 
 		if (i < 0 || i >= children.length)
 			throw new NoSuchElementException();
@@ -745,6 +746,7 @@ class BTreeInternalPageReverseIterator implements Iterator<BTreeEntry> {
 		while(!p.isSlotUsed(curEntry) && curEntry > 0) {
 			--curEntry;
 		}
+		
 	}
 
 	public boolean hasNext() {
@@ -760,6 +762,7 @@ class BTreeInternalPageReverseIterator implements Iterator<BTreeEntry> {
 			}
 			while (true) {
 				int entry = curEntry--;
+				
 				Field key = p.getKey(entry);
 				BTreePageId childId = p.getChildId(entry - 1);
 				if(key != null && childId != null) {

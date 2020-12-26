@@ -111,7 +111,9 @@ public class JoinOptimizer {
             // HINT: You may need to use the variable "j" if you implemented
             // a join algorithm that's more complicated than a basic
             // nested-loops join.
-            return -1.0;
+        	double cost = cost1 + card1 * cost2 + card1 * card2;
+            return cost;
+
         }
     }
 
@@ -157,6 +159,19 @@ public class JoinOptimizer {
             Map<String, Integer> tableAliasToId) {
         int card = 1;
         // some code goes here
+        if(joinOp == Predicate.Op.EQUALS){
+            if(t1pkey){
+                card = card2;
+            }else if(t2pkey){
+                card = card1;
+            }else{
+                card = card1>card2 ?card1:card2;
+            }
+        }else{
+            double temp = 0.3 * card1 *card2;
+            card = (int)temp;
+        }
+        
         return card <= 0 ? 1 : card;
     }
 
@@ -221,7 +236,32 @@ public class JoinOptimizer {
 
         // some code goes here
         //Replace the following
-        return joins;
+    	
+    	PlanCache planCache=new PlanCache();
+    	Set<Set<LogicalJoinNode> > nodeSets=null;
+    	for(int i=1;i<joins.size()+1;++i) {
+    		nodeSets=enumerateSubsets(joins, i);
+    		for(Set<LogicalJoinNode> nodes:nodeSets) {
+    			double costSofar=Double.MAX_VALUE;
+    			for(LogicalJoinNode node:nodes) {
+    				CostCard costCard=computeCostAndCardOfSubplan(stats, filterSelectivities, node, nodes, costSofar, planCache);
+    				if(costCard==null)
+    					continue;
+    				if(costCard.cost<costSofar) {
+    					costSofar=costCard.cost;
+    					planCache.addPlan(nodes, costSofar, costCard.card, costCard.plan);
+    				}
+    			}
+    		}
+    	}
+    	Vector<LogicalJoinNode> result=null;
+    	 result=planCache.getOrder(enumerateSubsets(joins, joins.size()).iterator().next());
+         if (explain)
+             printJoins(result, planCache, stats, filterSelectivities);
+  
+         return result;
+
+        //return joins;
     }
 
     // ===================== Private Methods =================================

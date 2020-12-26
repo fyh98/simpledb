@@ -516,21 +516,27 @@ public class BTreeUtility {
 
 		public void run() {
 			try {
+				System.out.println("bw"+tid);
 				int c = 0;
 				while(c < count) {
 					Tuple t = BTreeUtility.getBTreeTuple(item, 2);
+				//	System.out.println("insert");
 					Database.getBufferPool().insertTuple(tid, bf.getId(), t);
-
+					
 					IndexPredicate ipred = new IndexPredicate(Op.EQUALS, t.getField(bf.keyField()));
 					DbFileIterator it = bf.indexIterator(tid, ipred);
 					it.open();
 					c = 0;
+					//System.out.println("running2");
 					while(it.hasNext()) {
 						it.next();
 						c++;
 					}
+					//System.out.println("running3");
 					it.close();
+					//System.out.println("running4");
 				}
+				
 				synchronized(slock) {
 					success = true;
 				}
@@ -541,6 +547,7 @@ public class BTreeUtility {
 				}
 
 				try {
+					
 					Database.getBufferPool().transactionComplete(tid, false);
 				} catch (java.io.IOException e2) {
 					e2.printStackTrace();
@@ -684,7 +691,9 @@ public class BTreeUtility {
 		public void run() {
 			try {
 				Tuple t = BTreeUtility.getBTreeTuple(tupdata);
+			//	System.out.println(tid+"begins inserting tuple ");
 				Database.getBufferPool().insertTuple(tid, bf.getId(), t);
+			//	System.out.println("insert over "+tid+" will complete");
 				Database.getBufferPool().transactionComplete(tid);
 				ArrayList<Integer> tuple = tupleToList(t);
 				insertedTuples.put(tuple);

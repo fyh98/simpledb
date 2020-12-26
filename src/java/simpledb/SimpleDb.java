@@ -5,6 +5,7 @@ public class SimpleDb {
     public static void main (String args[])
             throws DbException, TransactionAbortedException, IOException {
         // convert a file
+    	System.out.println("*****");
         if(args[0].equals("convert")) {
         try {
             if (args.length<3 || args.length>5){

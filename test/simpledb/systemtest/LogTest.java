@@ -75,9 +75,12 @@ public class LogTest extends SimpleDbTestBase {
         throws DbException, TransactionAbortedException, IOException {
         // t.transactionComplete(true); // abort
         Database.getBufferPool().flushAllPages(); // XXX defeat NO-STEAL-based abort
+        
         Database.getLogFile().logAbort(t.getId()); // does rollback too
+        
         Database.getBufferPool().flushAllPages(); // prevent NO-STEAL-based abort from
                                                   // un-doing the rollback
+        
         Database.getBufferPool().transactionComplete(t.getId(), false); // release locks
     }
 
@@ -177,15 +180,20 @@ public class LogTest extends SimpleDbTestBase {
 
         // *** Test:
         // insert, crash, recover: data should still be there
-
+        
         doInsert(hf1, 1, 2);
-
+       
+        
+     
+   
         crash();
-
+      
         Transaction t = new Transaction();
         t.start();
         look(hf1, t, 1, true);
+      
         look(hf1, t, 2, true);
+       
         look(hf1, t, 3, false);
         t.commit();
     }
@@ -198,16 +206,23 @@ public class LogTest extends SimpleDbTestBase {
         // *** Test:
         // insert, abort: data should not be there
         // flush pages directly to heap file to defeat NO-STEAL policy
-
+        
         dontInsert(hf1, 4, -1);
-
+        
+        //Database.getLogFile().print();
         Transaction t = new Transaction();
         t.start();
+        
         look(hf1, t, 1, true);
+        
         look(hf1, t, 2, true);
+        
         look(hf1, t, 3, false);
+        
         look(hf1, t, 4, false);
+        
         t.commit();
+        
     }
 
     @Test public void TestAbortCommitInterleaved()
@@ -246,6 +261,7 @@ public class LogTest extends SimpleDbTestBase {
     @Test public void TestAbortCrash()
             throws IOException, DbException, TransactionAbortedException {
         setup();
+        System.out.println("testAbortCrash:");
         doInsert(hf1, 1, 2);
 
         dontInsert(hf1, 4, -1);
@@ -262,7 +278,7 @@ public class LogTest extends SimpleDbTestBase {
         // crash and recover: data should still not be there
 
         crash();
-
+        
         t = new Transaction();
         t.start();
         look(hf1, t, 1, true);
@@ -274,6 +290,7 @@ public class LogTest extends SimpleDbTestBase {
 
     @Test public void TestCommitAbortCommitCrash()
             throws IOException, DbException, TransactionAbortedException {
+    	
         setup();
         doInsert(hf1, 1, 2);
 
@@ -314,6 +331,7 @@ public class LogTest extends SimpleDbTestBase {
 
     @Test public void TestOpenCrash()
             throws IOException, DbException, TransactionAbortedException {
+    	
         setup();
         doInsert(hf1, 1, 2);
 
@@ -329,7 +347,7 @@ public class LogTest extends SimpleDbTestBase {
         insertRow(hf1, t, 9, 0);
 
         crash();
-
+      
         t = new Transaction();
         t.start();
         look(hf1, t, 1, true);
@@ -340,6 +358,7 @@ public class LogTest extends SimpleDbTestBase {
 
     @Test public void TestOpenCommitOpenCrash()
             throws IOException, DbException, TransactionAbortedException {
+    	
         setup();
         doInsert(hf1, 1, 2);
 
@@ -364,7 +383,7 @@ public class LogTest extends SimpleDbTestBase {
         insertRow(hf2, t3, 24, 0);
         Database.getBufferPool().flushAllPages(); // XXX defeat NO-STEAL-based abort
         insertRow(hf2, t3, 25, 0);
-
+        
         crash();
 
         Transaction t = new Transaction();
@@ -377,6 +396,7 @@ public class LogTest extends SimpleDbTestBase {
         look(hf2, t, 24, false);
         look(hf2, t, 25, false);
         t.commit();
+        System.out.println("3");
     }
 
     @Test public void TestOpenCommitCheckpointOpenCrash()

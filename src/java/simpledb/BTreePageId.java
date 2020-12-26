@@ -13,7 +13,8 @@ public class BTreePageId implements PageId {
 	private final int tableId;
 	private final int pgNo;
 	private int pgcateg;
-
+	
+	
 	static public String categToString(int categ) {
 		switch (categ) {
 			case ROOT_PTR:

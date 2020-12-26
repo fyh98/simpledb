@@ -23,7 +23,7 @@ public class BTreeChecker {
 
         SubtreeSummary(BTreeLeafPage base, int depth) {
             this.depth = depth;
-
+            
             this.leftmostId = base.getId();
             this.rightmostId = base.getId();
 
@@ -34,6 +34,7 @@ public class BTreeChecker {
         static SubtreeSummary checkAndMerge(SubtreeSummary accleft, SubtreeSummary right) {
             assert(accleft.depth == right.depth);
             assert(accleft.ptrRight.equals(right.leftmostId));
+           
             assert(accleft.rightmostId.equals(right.ptrLeft));
 
             SubtreeSummary ans = new SubtreeSummary();
@@ -64,8 +65,10 @@ public class BTreeChecker {
         if (rtptr.getRootId() == null) { // non existent root is a legal state.
             return;
         } else {
+        	System.out.println(rtptr.getRootId());
             SubtreeSummary res = checkSubTree(bt, tid, dirtypages,
                     rtptr.getRootId(), null, null, rtptr.getId(), checkOccupancy, 0);
+            
             assert (res.ptrLeft == null);
             assert (res.ptrRight == null);
         }
@@ -77,13 +80,14 @@ public class BTreeChecker {
             TransactionAbortedException, DbException {
         BTreePage page = (BTreePage )bt.getPage(tid, dirtypages, pageId, Permissions.READ_ONLY);
         assert(page.getParentId().equals(parentId));
-
+        
         if (page.getId().pgcateg() == BTreePageId.LEAF) {
+        	//System.out.println("leaf");
             BTreeLeafPage bpage = (BTreeLeafPage) page;
             bpage.checkRep(bt.keyField(), lowerBound, upperBound, checkOccupancy, depth);
             return new SubtreeSummary(bpage, depth);
         } else if (page.getId().pgcateg() == BTreePageId.INTERNAL) {
-
+        	//System.out.println("internal"+pageId.getPageNumber()+" "+parentId.getPageNumber()+" "+lowerBound+" "+upperBound);
             BTreeInternalPage ipage = (BTreeInternalPage) page;
             ipage.checkRep(lowerBound, upperBound, checkOccupancy, depth);
 
@@ -97,20 +101,25 @@ public class BTreeChecker {
                         checkOccupancy, depth + 1);
                 lowerBound = prev.getKey();
             }
-
+            //System.out.println("internal pase1 ends"+" "+pageId.getPageNumber());
             assert(acc != null);
             BTreeEntry curr = prev; // for one entry case.
             while (it.hasNext()) {
+            	
                 curr = it.next();
                 SubtreeSummary currentSubTreeResult =
                         checkSubTree(bt, tid, dirtypages, curr.getLeftChild(), lowerBound, curr.getKey(), ipage.getId(),
                                 checkOccupancy, depth + 1);
+             //   if(pageId.getPageNumber()==251)
+            //    	System.out.println(acc.leftmostId+" "+acc.rightmostId+" "+currentSubTreeResult.ptrLeft+" "+currentSubTreeResult.ptrRight);
                 acc = SubtreeSummary.checkAndMerge(acc, currentSubTreeResult);
 
                 // need to move stuff for next iter:
                 lowerBound = curr.getKey();
             }
-
+          //  System.out.println("internal pase2 ends"+" "+pageId.getPageNumber());
+        //    if(pageId.getPageNumber()==255)
+         //   	System.out.println(curr.getRightChild().getPageNumber());
             SubtreeSummary lastRight = checkSubTree(bt, tid, dirtypages, curr.getRightChild(), lowerBound, upperBound,
                     ipage.getId(), checkOccupancy, depth + 1);
             acc = SubtreeSummary.checkAndMerge(acc, lastRight);

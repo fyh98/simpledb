@@ -24,6 +24,7 @@ public class BTreeNextKeyLockingTest extends SimpleDbTestBase {
 	@Before
 	public void setUp() throws Exception {
 		tid = new TransactionId();
+		System.out.println(tid +"begins"+"*************************************************************");
 	}
 
 	@After
@@ -37,7 +38,7 @@ public class BTreeNextKeyLockingTest extends SimpleDbTestBase {
 		// This should create a B+ tree with 100 leaf pages
 		BTreeFile bigFile = BTreeUtility.createRandomBTreeFile(2, 50200,
 				null, null, 0);
-
+		
 		// get a key from the middle of the root page
 		BTreePageId rootPtrPid = new BTreePageId(bigFile.getId(), 0, BTreePageId.ROOT_PTR);
 		BTreeRootPtrPage rootPtr = (BTreeRootPtrPage) Database.getBufferPool().getPage(tid, rootPtrPid, Permissions.READ_ONLY);
@@ -57,7 +58,7 @@ public class BTreeNextKeyLockingTest extends SimpleDbTestBase {
 			count++;
 		}
 		assertTrue(key != null);
-
+		System.out.println("here");
 		// now find all tuples containing that key and delete them, as well as the next key
 		IndexPredicate ipred = new IndexPredicate(Op.EQUALS, key);
 		DbFileIterator fit = bigFile.indexIterator(tid, ipred);
@@ -66,7 +67,7 @@ public class BTreeNextKeyLockingTest extends SimpleDbTestBase {
 			Database.getBufferPool().deleteTuple(tid, fit.next());
 		}
 		fit.close();
-
+		
 		count = 0;
 		while(count == 0) {
 			key = new IntField(((IntField) key).getValue() + 1);
@@ -81,8 +82,9 @@ public class BTreeNextKeyLockingTest extends SimpleDbTestBase {
 		}
 
 		Database.getBufferPool().transactionComplete(tid);
+		System.out.println(tid +"commits"+"*************************************************************");
 		tid = new TransactionId();
-
+		System.out.println(tid +"begins"+"*************************************************************");
 		// search for tuples less than or equal to the key
 		ipred = new IndexPredicate(Op.LESS_THAN_OR_EQ, key);
 		fit = bigFile.indexIterator(tid, ipred);
@@ -93,15 +95,16 @@ public class BTreeNextKeyLockingTest extends SimpleDbTestBase {
 			keyCountBefore++;
 		}
 		fit.close();
-
+		
 		// In a different thread, try to insert tuples containing the key
 		TransactionId tid1 = new TransactionId();
+		System.out.println(tid1 +"begins"+"*************************************************************");
 		BTreeWriter bw1 = new BTreeWriter(tid1, bigFile, ((IntField) key).getValue(), 1);
 		bw1.start();
 
 		// allow thread to start
 		Thread.sleep(POLL_INTERVAL);
-
+		
 		// search for tuples less than or equal to the key
 		ipred = new IndexPredicate(Op.LESS_THAN_OR_EQ, key);
 		fit = bigFile.indexIterator(tid, ipred);
@@ -112,24 +115,27 @@ public class BTreeNextKeyLockingTest extends SimpleDbTestBase {
 			keyCountAfter++;
 		}
 		fit.close();
-
+	
 		// make sure our indexIterator() is working
 		assertTrue(keyCountBefore > 0);
 
 		// check that we don't have any phantoms
 		assertEquals(keyCountBefore, keyCountAfter);
 		assertFalse(bw1.succeeded());
-
+		
 		// now let the inserts happen
+		
 		Database.getBufferPool().transactionComplete(tid);
-
+		System.out.println(tid +"commits"+"*************************************************************");
+		System.out.println("step");
 		while(!bw1.succeeded()) {
+			//System.out.println("bw1");
 			Thread.sleep(POLL_INTERVAL);
 			if(bw1.succeeded()) {
 				Database.getBufferPool().transactionComplete(tid1);
 			}
 		}
-
+		
 		// clean up
 		bw1 = null;
 	}
@@ -139,7 +145,7 @@ public class BTreeNextKeyLockingTest extends SimpleDbTestBase {
 		// This should create a B+ tree with 100 leaf pages
 		BTreeFile bigFile = BTreeUtility.createRandomBTreeFile(2, 50200,
 				null, null, 0);
-
+		System.out.println("step12");
 		// get a key from the middle of the root page
 		BTreePageId rootPtrPid = new BTreePageId(bigFile.getId(), 0, BTreePageId.ROOT_PTR);
 		BTreeRootPtrPage rootPtr = (BTreeRootPtrPage) Database.getBufferPool().getPage(tid, rootPtrPid, Permissions.READ_ONLY);
@@ -223,6 +229,7 @@ public class BTreeNextKeyLockingTest extends SimpleDbTestBase {
 		assertFalse(bw1.succeeded());
 
 		// now let the inserts happen
+		
 		Database.getBufferPool().transactionComplete(tid);
 
 		while(!bw1.succeeded()) {

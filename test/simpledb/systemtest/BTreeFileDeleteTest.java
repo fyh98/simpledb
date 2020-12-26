@@ -83,7 +83,7 @@ public class BTreeFileDeleteTest extends SimpleDbTestBase {
 				tid, new HashMap<PageId, Page>(), true);
 		// there should be one internal node and 3 leaf nodes
 		assertEquals(4, threeLeafPageFile.numPages());
-
+		
 		// delete the last two tuples
 		DbFileIterator it = threeLeafPageFile.iterator(tid);
 		it.open();
@@ -95,9 +95,10 @@ public class BTreeFileDeleteTest extends SimpleDbTestBase {
 		}
 		it.close();
 		threeLeafPageFile.deleteTuple(tid, secondToLast);
+		
 		threeLeafPageFile.deleteTuple(tid, last);
 		BTreeChecker.checkRep(threeLeafPageFile, tid, new HashMap<PageId, Page>(), true);
-
+		
 		// confirm that the last two pages have merged successfully
 		BTreePageId rootPtrId = BTreeRootPtrPage.getId(threeLeafPageFile.getId());
 		BTreeRootPtrPage rootPtr = (BTreeRootPtrPage) Database.getBufferPool().getPage(
@@ -265,20 +266,23 @@ public class BTreeFileDeleteTest extends SimpleDbTestBase {
 		BTreeInternalPage root = (BTreeInternalPage) Database.getBufferPool().getPage(
 				tid, rootPtr.getRootId(), Permissions.READ_ONLY);
 		assertEquals(122, root.getNumEmptySlots());
-
+		
 		BTreeEntry e = root.iterator().next();
 		BTreeInternalPage leftChild = (BTreeInternalPage) Database.getBufferPool().getPage(
 				tid, e.getLeftChild(), Permissions.READ_ONLY);
 		BTreeInternalPage rightChild = (BTreeInternalPage) Database.getBufferPool().getPage(
 				tid, e.getRightChild(), Permissions.READ_ONLY);
-
+		
 		// Delete tuples causing leaf pages to merge until the first internal page 
 		// gets to minimum occupancy
 		DbFileIterator it = bigFile.iterator(tid);
 		it.open();
 		int count = 0;
+		
 		Database.getBufferPool().deleteTuple(tid, it.next());
 		it.rewind();
+		
+		//Thread.sleep(10000);
 		while(count < 62) {
 			assertEquals(count, leftChild.getNumEmptySlots());
 			for(int i = 0; i < 124; ++i) {
@@ -289,11 +293,13 @@ public class BTreeFileDeleteTest extends SimpleDbTestBase {
 		}
 
 		BTreeChecker.checkRep(bigFile, tid, new HashMap<PageId, Page>(), true);
-
+	//	Thread.sleep(20000);
 		// deleting a page of tuples should bring the internal page below minimum 
 		// occupancy and cause the entries to be redistributed
 		assertEquals(62, leftChild.getNumEmptySlots());
+		System.out.println("**********************************************************");
 		for(int i = 0; i < 124; ++i) {
+			
 			Database.getBufferPool().deleteTuple(tid, it.next());
 			it.rewind();
 		}

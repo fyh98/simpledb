@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javafx.scene.control.Tab;
+
 /**
  * The Catalog keeps track of all available tables in the database and their
  * associated schemas.
@@ -17,13 +19,28 @@ import java.util.concurrent.ConcurrentHashMap;
  * @Threadsafe
  */
 public class Catalog {
-
+	private final ConcurrentHashMap<Integer, Table> hashMap;
+	private class Table{
+		private static final long serialVersionUID=1L;
+		public final DbFile dbFile;
+		public final String tableName;
+		public final String pk;
+		public Table(DbFile dbFile,String tableName,String pk) {
+			this.dbFile=dbFile;
+			this.tableName=tableName;
+			this.pk=pk;
+		}
+		public String toString() {
+			return tableName + "(" + dbFile.getId() + ":" + pk +")";
+		}
+	}
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
         // some code goes here
+    	hashMap=new ConcurrentHashMap<>();
     }
 
     /**
@@ -37,6 +54,26 @@ public class Catalog {
      */
     public void addTable(DbFile file, String name, String pkeyField) {
         // some code goes here
+    	Table tMid=new Table(file, name, pkeyField);
+    	Boolean isSame=false;
+    	Table preUsingName = null;
+    	int preCode=0;
+    	Iterator<Map.Entry<Integer, Table>> iterator = hashMap.entrySet().iterator();
+    	Map.Entry<Integer, Table> entry;
+    	while (iterator.hasNext()) {
+    		
+    	    entry = iterator.next();
+    	    if (entry.getValue().tableName.equals(name)) {
+    	        isSame=true;
+    	        preCode=entry.getKey();
+    	        preUsingName=entry.getValue();
+    	    	iterator.remove();
+    	    }
+    	}
+    	if(isSame) {
+    		hashMap.put(preCode, new Table(preUsingName.dbFile, "", preUsingName.pk));
+    	}
+    	hashMap.put(file.getId(),tMid);
     }
 
     public void addTable(DbFile file, String name) {
@@ -60,7 +97,13 @@ public class Catalog {
      */
     public int getTableId(String name) throws NoSuchElementException {
         // some code goes here
-        return 0;
+    
+        for(int key:hashMap.keySet()) {
+    		if(hashMap.get(key).tableName.equals(name)) {
+    			return hashMap.get(key).dbFile.getId();
+    		}
+    	}
+        throw new NoSuchElementException("not found id for table " + name);
     }
 
     /**
@@ -71,7 +114,12 @@ public class Catalog {
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+    	Table resultTable=hashMap.getOrDefault(tableid,null);
+    	if(resultTable==null)
+    		throw new NoSuchElementException("table "+tableid+" not exists");
+    	else 
+    		return resultTable.dbFile.getTupleDesc();
+       
     }
 
     /**
@@ -82,27 +130,40 @@ public class Catalog {
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+    	Table resultTable=hashMap.getOrDefault(tableid,null);
+    	if(resultTable==null)
+    		throw new NoSuchElementException("table "+tableid+" not exists");
+    	else 
+    		return resultTable.dbFile;
     }
 
     public String getPrimaryKey(int tableid) {
         // some code goes here
-        return null;
+    	Table resultTable=hashMap.getOrDefault(tableid,null);
+    	if(resultTable==null)
+    		throw new NoSuchElementException("table "+tableid+" not exists");
+    	else 
+    		return resultTable.pk;
     }
 
     public Iterator<Integer> tableIdIterator() {
         // some code goes here
-        return null;
+    	 return hashMap.keySet().iterator();
     }
 
     public String getTableName(int id) {
         // some code goes here
-        return null;
+    	Table resultTable=hashMap.getOrDefault(id,null);
+    	if(resultTable==null)
+    		throw new NoSuchElementException("table "+id+" not exists");
+    	else 
+    		return resultTable.tableName;
     }
     
     /** Delete all tables from the catalog */
     public void clear() {
         // some code goes here
+    	hashMap.clear();
     }
     
     /**
