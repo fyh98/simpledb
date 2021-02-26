@@ -127,28 +127,7 @@ public class BufferPool {
         }
         return pageResult;
     }
-    Page getPageSimple(PageId pid) {
-    	Integer keyPid=pid.hashCode();
-        Page pageResult;
-        synchronized (pages) {
-            if(!pages.containsKey(keyPid)) {
-                int tabId = pid.getTableId();
-                DbFile file = Database.getCatalog().getDatabaseFile(tabId);
-                Page page = file.readPage(pid);     
-                if(pages.size()==numPages){
-                    try {
-		        evictPage();
-					} catch (DbException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-                }
-                pages.put(keyPid,page);
-            }
-        	pageResult=pages.get(keyPid);
-		}
-        return pageResult;
-    }
+    
     void getPageSet(Page page) {
     	PageId pid=page.getId();
     	Integer keyPid=page.getId().hashCode();
@@ -411,7 +390,7 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         // some code goes here
         // not necessary for lab1    	
-    	Page page=getPageSimple(pid);
+    	Page page=getPageFromBuffer(pid);
     	TransactionId tId=page.isDirty();    	    	
     	if(tId!=null) {
     	    Database.getLogFile().logWrite(tId,page.getBeforeImage(),page);
@@ -428,44 +407,18 @@ public class BufferPool {
         // not necessary for lab1|lab2
     	Iterator<Map.Entry<PageId, Vector<Lock>>> iterator=lockManager.lockMap.entrySet().iterator();
     	while (iterator.hasNext()) {
-			Map.Entry<PageId, Vector<Lock>> now=iterator.next();
-			PageId pageNowId=now.getKey();
-			Vector<Lock> locksNow=now.getValue();
-			for(int i=0;i<locksNow.size();++i) {
-				if(locksNow.get(i).tid.equals(tid))
-					flushPage(pageNowId);
-			}
+	    Map.Entry<PageId, Vector<Lock>> now=iterator.next();
+	    PageId pageNowId=now.getKey();
+	    Vector<Lock> locksNow=now.getValue();
+	        for(int i=0;i<locksNow.size();++i) {
+		    if(locksNow.get(i).tid.equals(tid))
+		        flushPage(pageNowId);
 		}
-    	
+	}    	
     }
     public  void flushPagesForCommit(TransactionId tid) throws IOException {
         // some code goes here
-        // not necessary for lab1|lab2
-    	/*Iterator<Map.Entry<PageId, Vector<Lock>>> iterator=lockManager.lockMap.entrySet().iterator();
-    	int count=0;
-    	while (iterator.hasNext()) {
-			Map.Entry<PageId, Vector<Lock>> now=iterator.next();
-			PageId pageNowId=now.getKey();
-			Vector<Lock> locksNow=now.getValue();
-			for(int i=0;i<locksNow.size();++i) {
-				System.out.println(i+" "+locksNow.size()+""+pageNowId+" "+tid);
-				try {
-					System.out.println("flush"+tid+" "+pageNowId+" "+i+" "+locksNow.get(i).tid);
-				} catch (ArrayIndexOutOfBoundsException e) {
-					// TODO: handle exception
-					System.out.println("problem"+tid+" "+pageNowId+" "+i+"***************************"+locksNow.size());
-				}
-				if(locksNow.get(i).tid.equals(tid)) {
-					//System.out.println(tid+ "flush page: "+pageNowId.getPageNumber());
-					flushPage(pageNowId);
-					Page page=getPageSimple(pageNowId);
-					page.setBeforeImage();
-					++count;
-				}
-					
-			}
-		}*/
-    	//System.out.println(tid+ "flush"+count);
+        // not necessary for lab1|lab2    	
     	Vector<PageId> pageIds=lockManager.reverseLockMap.get(tid);
     	if(pageIds==null)
     		return;
@@ -484,48 +437,30 @@ public class BufferPool {
         // not necessary for lab1
     	boolean leap=false;
     	synchronized (pages) {
-    		List<Page> pageList=new ArrayList<Page>(pages.values());
-        	for(int i=0;i<pageList.size();++i) {
-        		Page page=pageList.get(i);
-        		if(page.isDirty()!=null) {
-        			continue;
-        			/*try {
-    					flushPage(page.getId());
-    				} catch (IOException e) {
-    					// TODO Auto-generated catch block
-    					e.printStackTrace();
-    				}*/
-        			
-        		}
-        		discardPage(page.getId());
-        		leap=true;
-        		break;
-        	}
-		}
+    	    List<Page> pageList=new ArrayList<Page>(pages.values());
+            for(int i=0;i<pageList.size();++i) {
+                Page page=pageList.get(i);
+                if(page.isDirty()!=null) {
+                    continue;
+                }
+                discardPage(page.getId());
+                leap=true;
+                break;
+            }
+	}
     	if(!leap)
-    		throw new DbException("all pages are dirty");
-    	/*PageId pId=pageList.get(0).getId();
-    	//System.out.println(pId.getPageNumber()+"************************************************");
-    	try {
-			flushPage(pId);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-    	//System.out.println(pId.getPageNumber()+"************************************************");
-    	discardPage(pId);*/
-    	
+    	    throw new DbException("all pages are dirty");
     }
+	
     private class node{
     	TransactionId tId;
     	Vector<node> require;
     	int visit;
     	public node(TransactionId tId) {
-    		this.tId=tId;
-    		require=new Vector<>();
-    		visit=0;
-		}
-    	
+    	    this.tId=tId;
+    	    require=new Vector<>();
+    	    visit=0;
+	}    	
     }
     
     private class Lock{
@@ -537,6 +472,7 @@ public class BufferPool {
             this.isLockShare=isLockShare;
         }
     }
+	
     private class LockManager{
         ConcurrentHashMap<PageId,Vector<Lock>> lockMap;
         ConcurrentHashMap<PageId,TransactionId> specialRelease;
@@ -555,13 +491,15 @@ public class BufferPool {
             pageIdsOfHeapPage=new ConcurrentHashMap<>();
             reverseLockMap=new ConcurrentHashMap<TransactionId, Vector<PageId>>();
         }
+	    
         private Boolean isBTreePageId(PageId pageId) {
-        	HeapPageId pageIdToBeCompared=new HeapPageId(pageId.getTableId(), pageId.getPageNumber());
-        	if(pageIdToBeCompared.equals(pageId))
-        		return false;
-        	else
-        		return true;
-		}
+            HeapPageId pageIdToBeCompared=new HeapPageId(pageId.getTableId(), pageId.getPageNumber());
+            if(pageIdToBeCompared.equals(pageId))
+                return false;
+            else
+        	return true;
+	}
+	    
         private PageId getPageId(PageId pageId) {
         	
         	HeapPageId pageIdToBeCompared=new HeapPageId(pageId.getTableId(), pageId.getPageNumber());
