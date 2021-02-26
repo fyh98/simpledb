@@ -43,9 +43,7 @@ public class BufferPool {
     public static final int DEFAULT_PAGES = 50;
     private final int numPages;
     private final ConcurrentHashMap<Integer,Page> pages;
-    private final ConcurrentHashMap<PageId,Integer> pageAge;
     ConcurrentHashMap<TransactionId,Vector<PageId>> bucket;
-    private int age;
     private  LockManager lockManager;
     
     /**
@@ -57,15 +55,12 @@ public class BufferPool {
         // some code goes here
     	this.numPages=numPages;
     	pages=new ConcurrentHashMap<Integer,Page>();
-    	age = 0;
         lockManager = new LockManager();
-        pageAge = new ConcurrentHashMap<PageId,Integer>();
         bucket=new ConcurrentHashMap<TransactionId, Vector<PageId>>();
-
     }
     
     public static int getPageSize() {
-      return pageSize;
+        return pageSize;
     }
     
     // THIS FUNCTION SHOULD ONLY BE USED FOR TESTING!!
@@ -97,10 +92,10 @@ public class BufferPool {
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
+	    
     	int lockType;
-    	
     	boolean isLockShare;
-        if(perm == Permissions.READ_ONLY){
+        if(perm == Permissions.READ_ONLY) {
             lockType = 0;
             isLockShare=true;
         }else{
@@ -109,56 +104,40 @@ public class BufferPool {
         }
         
         Integer keyPid=pid.hashCode();
-        Page pageResult=getPageFromBuffer(tid, pid);
-       
-   //     System.out.println(tid+" wants page "+pid.getPageNumber()+" "+perm);
+        Page pageResult=getPageFromBuffer(pid);
         if(!lockManager.isSameLock(pageResult, tid, isLockShare))
-        	lockManager.acquireLock(pageResult, tid, isLockShare);
-       
+            lockManager.acquireLock(pageResult, tid, isLockShare);
     	return  pageResult;
-    	/*if(!pages.containsKey(pid.hashCode())) {
-    		if(pages.size()>numPages)
-    			evictPage();
-    		DbFile dbFile=Database.getCatalog().getDatabaseFile(pid.getTableId());
-    		
-    		Page page=dbFile.readPage(pid);
-    		page.markDirty(false, tid);
-    		pages.put(pid.hashCode(),page);
-    		
-    	}
-    	return pages.get(pid.hashCode());*/
     }
-    private Page getPageFromBuffer(TransactionId tid, PageId pid) throws DbException {
+	
+    private Page getPageFromBuffer(PageId pid) throws DbException {
     	Integer keyPid=pid.hashCode();
         Page pageResult;
-        
         synchronized (pages) {
-        	if(!pages.containsKey(keyPid)){
+            if(!pages.containsKey(keyPid)) {
                 int tabId = pid.getTableId();
                 DbFile file = Database.getCatalog().getDatabaseFile(tabId);
-                Page page = file.readPage(pid);
-     
-                if(pages.size()==numPages){
-                    evictPage();
-                }
-                pages.put(keyPid,page);
+                Page page = file.readPage(pid);     
+                    if(pages.size()==numPages) {
+                        evictPage();
+                    }
+                    pages.put(keyPid,page);
             }
-        	pageResult=pages.get(keyPid);
-		}
+            pageResult=pages.get(keyPid);
+        }
         return pageResult;
     }
     Page getPageSimple(PageId pid) {
     	Integer keyPid=pid.hashCode();
         Page pageResult;
         synchronized (pages) {
-        	if(!pages.containsKey(keyPid)){
+            if(!pages.containsKey(keyPid)) {
                 int tabId = pid.getTableId();
                 DbFile file = Database.getCatalog().getDatabaseFile(tabId);
-                Page page = file.readPage(pid);
-     
+                Page page = file.readPage(pid);     
                 if(pages.size()==numPages){
                     try {
-						evictPage();
+		        evictPage();
 					} catch (DbException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -195,15 +174,12 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1|lab2
     	Page pageResult = null;
-		try {
-			pageResult = getPageFromBuffer(tid, pid);
-		} catch (DbException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	//	System.out.println(pageResult.getId().getPageNumber()+" get");
+	try {
+	    pageResult = getPageFromBuffer(pid);
+	} catch (DbException e) {
+	    e.printStackTrace();
+	}
     	lockManager.releaseLock(pageResult,tid);
-
     }
 
     /**
@@ -214,9 +190,7 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
-    	//System.out.println(tid);
     	transactionComplete(tid,true);
-    	//System.out.println(tid+"ends");
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
@@ -224,15 +198,12 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1|lab2
     	Page pageResult = null;
-		try {
-			pageResult = getPageFromBuffer(tid, p);
-		} catch (DbException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-			return lockManager.holdsLock(pageResult,tid);
-    	
-        //return false;
+	try {
+	    pageResult = getPageFromBuffer(tid, p);
+	} catch (DbException e) {
+	    e.printStackTrace();
+	}
+	return lockManager.holdsLock(pageResult,tid);
     }
 
     /**
@@ -253,99 +224,36 @@ public class BufferPool {
         }else{
             restorePages(tid);
         }
-    
-    	/*synchronized (pages) {
-    		for(Integer pid:pages.keySet()){
-                if(holdsLock(tid,pages.get(pid).getId())) {
-                	releasePage(tid,pages.get(pid).getId());
-                	
-                }
-                    
-            }
-		}*/
-    	
-    	
-    		bucket.remove(tid);
-    		
-    	
-		
+    	bucket.remove(tid);	
     	int count=0;
     	Vector<PageId> pageIds=lockManager.reverseLockMap.get(tid);
-    	//System.out.println(tid+" should release"+pageIds.size());
-    	//for(int i=0;i<pageIds.size();++i) {
-    	//	System.out.println(tid+" release"+pageIds.get(i).getPageNumber()+" "+i+" "+pageIds.size());
-    	//	releasePage(tid, pageIds.get(i));
-    	//}
     	if(pageIds!=null) {
-    		while (pageIds.size()!=0) {
-        		releasePage(tid, pageIds.get(0));			
-    		}
+    	    while (pageIds.size()!=0) {
+        	releasePage(tid, pageIds.get(0));			
+    	    }
     	}
-    	
-    //	System.out.println(tid+"has been released");
-    //	lockManager.reverseLockMap.remove(tid);
-    	/*
-    	synchronized (lockManager.lockMap) {
-    			
-    		Iterator<Map.Entry<PageId, Vector<Lock>>> iterator=lockManager.lockMap.entrySet().iterator();
-        	while (iterator.hasNext()) {
-    			Map.Entry<PageId, Vector<Lock>> now=iterator.next();
-    			PageId pageNowId=now.getKey();
-    			Vector<Lock> locksNow=now.getValue();
-    			
-    			
-    			for(int i=0;i<locksNow.size();++i) {
-    				//if(i<0||i>=locksNow.size())
-    				
-    				if(locksNow.get(i).tid.equals(tid)) {
-    					++count;
-    		//			System.out.println(tid+" releases"+count+" pages"+pageNowId.getPageNumber()+locksNow.get(i).isLockShare);
-    					releasePage(tid, pageNowId);
-    					break;
-    				}
-    					
-    			}
-    			
-    		}
-        	
-		}
-    	*/
     }
     
-    public void print2(PageId pid1) {
-    	synchronized (lockManager.lockMap) {
-    		Vector<Lock> locks1=lockManager.lockMap.get(pid1);
-    		
-    		for(int i=0;i<locks1.size();++i)
-    			System.out.println(locks1.get(i).tid.myid+" "+locks1.get(i).isLockShare);
-    		
-		}
-	}
-    
+   /** Restore pages that Transaction tid has updated */
     private void restorePages(TransactionId tid) {
     	synchronized (pages) {
-    		for (Integer pid : pages.keySet()) {
+    	    for (Integer pid : pages.keySet()) {
                 Page page = pages.get(pid);
-                
                 if (page.isDirty()!=null&&page.isDirty().equals(tid)) {
-                	
                     int tabId = page.getId().getTableId();
-            //        System.out.println(tabId);
                     DbFile file =  Database.getCatalog().getDatabaseFile(tabId);
-                    //Page pageFromDisk = file.readPage(page.getId());
-                    Page pageFromDisk =page.getBeforeImage();
+                    Page pageBeforeImage =page.getBeforeImage();
                     try {
-    					file.writePage(pageFromDisk);
-    				} catch (IOException e) {
-    					// TODO Auto-generated catch block
-    					e.printStackTrace();
-    				}
-                    pages.put(pid, pageFromDisk);
-                }
+    		        file.writePage(pageBeforeImage);
+    		    } catch (IOException e) {
+        	        e.printStackTrace();
+    		    }
+                    pages.put(pid, pageBeforeImage);
+               }
             }
-		}
-        
+	}
     }
+	
      void  checkDeadLock() throws TransactionAbortedException {
     		
     		node cur=null;
