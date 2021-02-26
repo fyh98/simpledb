@@ -252,121 +252,71 @@ public class BufferPool {
                }
             }
 	}
+     }
+
+     /** check deadlock and throws a TransactionAbortedException if there is  deadlock */	
+     void  checkDeadLock() throws TransactionAbortedException {
+         node cur=null;
+    	 node pre=null;
+    	 ConcurrentHashMap<TransactionId,node> map = new ConcurrentHashMap<TransactionId, node>();
+    	 ConcurrentHashMap<TransactionId,Vector<PageId>> copyOfBucket=new ConcurrentHashMap<TransactionId,Vector<PageId>>();
+    	 ConcurrentHashMap<PageId,Vector<Lock>> copyOfLockmap=new ConcurrentHashMap<PageId, Vector<Lock>>();
+    	 boolean isDeadLock=false;	
+    	 synchronized (bucket) {
+    	     copyOfLockmap.putAll(lockManager.lockMap);
+    	     for(Map.Entry<TransactionId, Vector<PageId>> entry:bucket.entrySet()) {
+        	 Vector<PageId> pageNeed=entry.getValue();
+        	 TransactionId tId=entry.getKey();        			
+        	 if(map.get(tId)==null) {
+    		     map.put(tId, new node(tId));
+    		 }	 
+                 cur=map.get(tId);
+                 for(int i=0;i<pageNeed.size();++i) {
+                     PageId pid=pageNeed.get(i);
+        	     Vector<Lock> locksUsing;   					
+        	     locksUsing=copyOfLockmap.get(pid);
+        	     for(int j=0;j<locksUsing.size();++j) {
+        	         TransactionId tidUsing=locksUsing.get(j).tid;
+        	         if(tId.equals(tidUsing))
+        	             continue;			
+        	         if(map.get(tidUsing)==null) {
+        	             map.put(tidUsing, new node(tidUsing));
+        	         }
+        	         node nodeRely=map.get(tidUsing);
+        	         cur.require.add(nodeRely);		
+        	    }		
+                 }		
+             }    			
+	 }
+    	 node[] nodeRemove=new node[1];	
+    	 for(Map.Entry<TransactionId, node> entry:map.entrySet()) {
+    	     node nodeCur=entry.getValue();
+    	     if(nodeCur.visit==1)
+    	         continue;
+    	     if(!dfs(nodeCur)) {
+		 throw new TransactionAbortedException();
+    	     }
+    	 }	
+    }
+
+    /** implementation of  Topology traversal algorithm */	
+    boolean dfs(node nodeNow) {
+        if(nodeNow.visit==-1)
+    	    return false;
+    	nodeNow.visit=-1;
+    	for(int i=0;i<nodeNow.require.size();++i) {
+    	    if(nodeNow.require.get(i).visit==-1)
+    	        return false;
+    	    if(nodeNow.require.get(i).visit==1)
+    		continue;    		
+    	    if(!dfs(nodeNow.require.get(i))) {
+    		return false;
+    	    }
+    	}
+    	nodeNow.visit=1;
+    	return true;
     }
 	
-     void  checkDeadLock() throws TransactionAbortedException {
-    		
-    		node cur=null;
-    		node pre=null;
-    		ConcurrentHashMap<TransactionId,node> map = new ConcurrentHashMap<TransactionId, node>();
-    		ConcurrentHashMap<TransactionId,Vector<PageId>> copyOfBucket=new ConcurrentHashMap<TransactionId,Vector<PageId>>();
-    		ConcurrentHashMap<PageId,Vector<Lock>> copyOfLockmap=new ConcurrentHashMap<PageId, Vector<Lock>>();
-    		boolean isDeadLock=false;
-    		
-    		synchronized (bucket) {
-    			copyOfLockmap.putAll(lockManager.lockMap);
-    			//copyOfBucket.putAll(bucket);
-    			for(Map.Entry<TransactionId, Vector<PageId>> entry:bucket.entrySet()) {
-        			Vector<PageId> pageNeed=entry.getValue();
-        			TransactionId tId=entry.getKey();
-        			
-        			
-        			if(map.get(tId)==null) {
-    					map.put(tId, new node(tId));
-    				}
-        			
-        			cur=map.get(tId);
-        		
-        			for(int i=0;i<pageNeed.size();++i) {
-        				PageId pid=pageNeed.get(i);
-        				Vector<Lock> locksUsing;
-        			
-        				
-        					
-      //  					 locksUsing=lockManager.lockMap.get(pid);
-        				locksUsing=copyOfLockmap.get(pid);
-        				int l1=locksUsing.size();
-     //   				System.out.println(tId+" "+locksUsing.size()+"before"+pid.getPageNumber());
-        				for(int j=0;j<locksUsing.size();++j) {
-        					if(j==0)
-     //   						System.out.println(tId+" "+locksUsing.size()+"after");
-        					if(j==0&&l1!=locksUsing.size())
-        						System.out.println(tId+" "+pid.getPageNumber()+" "+l1+" "+locksUsing.size()+"&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
-        					
-        					TransactionId tidUsing=locksUsing.get(j).tid;
-        					if(tId.equals(tidUsing))
-        						continue;
-        					
-      //  					System.out.println("tid to be added:"+tidUsing.myid);
-        					if(map.get(tidUsing)==null) {
-        						map.put(tidUsing, new node(tidUsing));
-        					}
-        					node nodeRely=map.get(tidUsing);
-        					cur.require.add(nodeRely);		
-        				}
-        				
-        			}
-        			
-        		}
-    			
-			}
-    	
-    		node[] nodeRemove=new node[1];
-    		
-    		for(Map.Entry<TransactionId, node> entry:map.entrySet()) {
-    			node nodeCur=entry.getValue();
-    			if(nodeCur.visit==1)
-    				continue;
-    			if(!dfs(nodeCur,nodeRemove)) {
-    			
-    	//					System.out.println("deadlock detected***************"+nodeCur.tId);
-			
-					throw new TransactionAbortedException();
-    				
-    			}
-    				
-    			
-    		}
-    	//	System.out.println("no deadlock");
-    		
-    }
-    boolean dfs(node nodeNow,node[] nodeRemove) {
-    	if(nodeNow.visit==-1) {
-    		nodeRemove[0]=nodeNow;
-    		
-    		return false;
-    	}
-    		
-    	nodeNow.visit=-1;
-    	for(int i=0;i<nodeNow.require.size();++i) {
-    		
-    		if(nodeNow.require.get(i).visit==1)
-    			continue;
-    		
-    		if(!dfs(nodeNow.require.get(i),nodeRemove)) {
-    			return false;
-    		}
-    	}
-    	nodeNow.visit=1;
-    	return true;
-    }
-    boolean dfs(node nodeNow) {
-    	if(nodeNow.visit==-1)
-    		return false;
-    	nodeNow.visit=-1;
-    	for(int i=0;i<nodeNow.require.size();++i) {
-    		if(nodeNow.require.get(i).visit==-1)
-    			return false;
-    		if(nodeNow.require.get(i).visit==1)
-    			continue;
-    		
-    		if(!dfs(nodeNow.require.get(i))) {
-    			return false;
-    		}
-    	}
-    	nodeNow.visit=1;
-    	return true;
-    }
     /**
      * Add a tuple to the specified table on behalf of transaction tid.  Will
      * acquire a write lock on the page the tuple is added to and any other 
@@ -389,13 +339,11 @@ public class BufferPool {
         // not necessary for lab1
     	DbFile file=Database.getCatalog().getDatabaseFile(tableId);
     	ArrayList<Page> pageList=file.insertTuple(tid, t);
-    	
     	for(Page page:pageList) {
-    		
-    		page.markDirty(true, tid);
-    		if(pages.size()>numPages)
-    			evictPage();
-    		pages.put(page.getId().hashCode(), page);
+    	    page.markDirty(true, tid);
+    	    if(pages.size()>numPages)
+    	    evictPage();
+    	    pages.put(page.getId().hashCode(), page);
     	}
     }
 
@@ -420,9 +368,9 @@ public class BufferPool {
     	DbFile file=Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId());
     	ArrayList<Page> pageList=file.deleteTuple(tid, t);
     	for(Page page:pageList) {
-    		page.markDirty(true, tid);
-    		if(pages.size()>numPages)
-    			evictPage();
+    	    page.markDirty(true, tid);
+    	    if(pages.size()>numPages)
+    	        evictPage();
     		pages.put(page.getId().hashCode(), page);
     	}
     }
@@ -436,11 +384,8 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1
     	for(Page p:pages.values()) {
-    		flushPage(p.getId());
-    	
-    		
+    	    flushPage(p.getId());	
     	}
-
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -455,9 +400,8 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1
     	synchronized (pages) {
-    		pages.remove(pid.hashCode());
-		}
-    	
+    	    pages.remove(pid.hashCode());
+	}    	
     }
 
     /**
@@ -466,25 +410,15 @@ public class BufferPool {
      */
     private synchronized  void flushPage(PageId pid) throws IOException {
         // some code goes here
-        // not necessary for lab1
-    	
+        // not necessary for lab1    	
     	Page page=getPageSimple(pid);
-    	TransactionId tId=null;    	
-    	tId=page.isDirty();
-    	
-    		
-    	
+    	TransactionId tId=page.isDirty();    	    	
     	if(tId!=null) {
-    	//if((tId=page.isDirty())!=null) {
-    		//System.out.println("update "+tId.myid);
-    		Database.getLogFile().logWrite(tId,page.getBeforeImage(),page);
-    		Database.getLogFile().force();
-    		
-    		//System.out.println(page.getId().getPageNumber()+" changed by "+tId.myid);
-    		Database.getCatalog().getDatabaseFile(pid.getTableId()).writePage(page);
-    		page.markDirty(false, null);
-    	}
-    	
+    	    Database.getLogFile().logWrite(tId,page.getBeforeImage(),page);
+    	    Database.getLogFile().force();
+    	    Database.getCatalog().getDatabaseFile(pid.getTableId()).writePage(page);
+    	    page.markDirty(false, null);
+    	}    	
     }
 
     /** Write all pages of the specified transaction to disk.
